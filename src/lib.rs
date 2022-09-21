@@ -9,23 +9,25 @@ use tracing::{
 use tracing_subscriber::layer::*;
 use tracing_subscriber::registry::*;
 
-use wasm_bindgen::prelude::*;
+use roblox_rs::{println, roblox_print};
 
-#[wasm_bindgen]
-extern "C" {
-    #[wasm_bindgen(js_namespace = performance)]
-    fn mark(a: &str);
-    #[wasm_bindgen(catch, js_namespace = performance)]
-    fn measure(name: String, startMark: String) -> Result<(), JsValue>;
-    #[wasm_bindgen(js_namespace = console, js_name = log)]
-    fn log1(message: String);
-    #[wasm_bindgen(js_namespace = console, js_name = log)]
-    fn log2(message1: &str, message2: &str);
-    #[wasm_bindgen(js_namespace = console, js_name = log)]
-    fn log3(message1: &str, message2: &str, message3: &str);
-    #[wasm_bindgen(js_namespace = console, js_name = log)]
-    fn log4(message1: String, message2: &str, message3: &str, message4: &str);
-}
+// use wasm_bindgen::prelude::*;
+
+// #[wasm_bindgen]
+// extern "C" {
+//     #[wasm_bindgen(js_namespace = performance)]
+//     fn mark(a: &str);
+//     #[wasm_bindgen(catch, js_namespace = performance)]
+//     fn measure(name: String, startMark: String) -> Result<(), JsValue>;
+//     #[wasm_bindgen(js_namespace = console, js_name = log)]
+//     fn log1(message: String);
+//     #[wasm_bindgen(js_namespace = console, js_name = log)]
+//     fn log2(message1: &str, message2: &str);
+//     #[wasm_bindgen(js_namespace = console, js_name = log)]
+//     fn log3(message1: &str, message2: &str, message3: &str);
+//     #[wasm_bindgen(js_namespace = console, js_name = log)]
+//     fn log4(message1: String, message2: &str, message3: &str, message4: &str);
+// }
 
 #[cfg(test)]
 mod test {
@@ -42,7 +44,6 @@ mod test {
             WASMLayerConfig {
                 report_logs_in_timings: true,
                 report_logs_in_console: true,
-                use_console_color: true,
                 max_level: tracing::Level::TRACE,
             }
         )
@@ -66,7 +67,6 @@ mod test {
         let config = builder.build();
 
         assert_eq!(config.report_logs_in_console, false);
-        assert_eq!(config.use_console_color, false);
     }
 
     #[test]
@@ -77,7 +77,6 @@ mod test {
         let config = builder.build();
 
         assert_eq!(config.report_logs_in_console, true);
-        assert_eq!(config.use_console_color, false);
     }
 
     #[test]
@@ -88,7 +87,6 @@ mod test {
         let config = builder.build();
 
         assert_eq!(config.report_logs_in_console, true);
-        assert_eq!(config.use_console_color, true);
     }
 
     #[test]
@@ -122,8 +120,6 @@ pub struct WASMLayerConfigBuilder {
     report_logs_in_timings: bool,
     /// Log events will be logged to the browser console
     report_logs_in_console: bool,
-    /// Only relevant if report_logs_in_console is true, this will use color style strings in the console.
-    use_console_color: bool,
     /// Log events will be reported from this level -- Default is ALL (TRACE)
     max_level: tracing::Level,
 }
@@ -156,15 +152,12 @@ impl WASMLayerConfigBuilder {
         match console_config {
             ConsoleConfig::NoReporting => {
                 self.report_logs_in_console = false;
-                self.use_console_color = false;
             }
             ConsoleConfig::ReportWithoutConsoleColor => {
                 self.report_logs_in_console = true;
-                self.use_console_color = false;
             }
             ConsoleConfig::ReportWithConsoleColor => {
                 self.report_logs_in_console = true;
-                self.use_console_color = true;
             }
         }
 
@@ -176,7 +169,6 @@ impl WASMLayerConfigBuilder {
         WASMLayerConfig {
             report_logs_in_timings: self.report_logs_in_timings,
             report_logs_in_console: self.report_logs_in_console,
-            use_console_color: self.use_console_color,
             max_level: self.max_level,
         }
     }
@@ -187,7 +179,6 @@ impl Default for WASMLayerConfigBuilder {
         WASMLayerConfigBuilder {
             report_logs_in_timings: true,
             report_logs_in_console: true,
-            use_console_color: true,
             max_level: tracing::Level::TRACE,
         }
     }
@@ -197,7 +188,6 @@ impl Default for WASMLayerConfigBuilder {
 pub struct WASMLayerConfig {
     report_logs_in_timings: bool,
     report_logs_in_console: bool,
-    use_console_color: bool,
     max_level: tracing::Level,
 }
 
@@ -206,7 +196,6 @@ impl core::default::Default for WASMLayerConfig {
         WASMLayerConfig {
             report_logs_in_timings: true,
             report_logs_in_console: true,
-            use_console_color: true,
             max_level: tracing::Level::TRACE,
         }
     }
@@ -249,7 +238,7 @@ fn thread_display_suffix() -> String {
 }
 
 #[cfg(not(feature = "mark-with-rayon-thread-index"))]
-fn mark_name(id: &tracing::Id) -> String {
+fn _mark_name(id: &tracing::Id) -> String {
     format!("t{:x}", id.into_u64())
 }
 #[cfg(feature = "mark-with-rayon-thread-index")]
@@ -307,85 +296,85 @@ impl<S: Subscriber + for<'a> LookupSpan<'a>> Layer<S> for WASMLayer {
                     .and_then(|file| meta.line().map(|ln| format!("{}:{}", file, ln)))
                     .unwrap_or_default();
 
-                if self.config.use_console_color {
-                    log4(
-                        format!(
-                            "%c{}%c {}{}%c{}",
-                            level,
-                            origin,
-                            thread_display_suffix(),
-                            recorder,
-                        ),
-                        match *level {
-                            tracing::Level::TRACE => "color: dodgerblue; background: #444",
-                            tracing::Level::DEBUG => "color: lawngreen; background: #444",
-                            tracing::Level::INFO => "color: whitesmoke; background: #444",
-                            tracing::Level::WARN => "color: orange; background: #444",
-                            tracing::Level::ERROR => "color: red; background: #444",
-                        },
-                        "color: gray; font-style: italic",
-                        "color: inherit",
-                    );
-                } else {
-                    log1(format!(
-                        "{} {}{} {}",
-                        level,
-                        origin,
-                        thread_display_suffix(),
-                        recorder,
-                    ));
-                }
+                // if self.config.use_console_color {
+                //     log4(
+                //         format!(
+                //             "%c{}%c {}{}%c{}",
+                //             level,
+                //             origin,
+                //             thread_display_suffix(),
+                //             recorder,
+                //         ),
+                //         match *level {
+                //             tracing::Level::TRACE => "color: dodgerblue; background: #444",
+                //             tracing::Level::DEBUG => "color: lawngreen; background: #444",
+                //             tracing::Level::INFO => "color: whitesmoke; background: #444",
+                //             tracing::Level::WARN => "color: orange; background: #444",
+                //             tracing::Level::ERROR => "color: red; background: #444",
+                //         },
+                //         "color: gray; font-style: italic",
+                //         "color: inherit",
+                //     );
+                // } else {
+                println!(
+                    "{} {}{} {}",
+                    level,
+                    origin,
+                    thread_display_suffix(),
+                    recorder,
+                );
+                // }
             }
             if self.config.report_logs_in_timings {
-                let mark_name = format!(
+                let _mark_name = format!(
                     "c{:x}",
                     self.last_event_id
                         .fetch_add(1, core::sync::atomic::Ordering::Relaxed)
                 );
                 // mark and measure so you can see a little blip in the profile
-                mark(&mark_name);
-                let _ = measure(
-                    format!(
-                        "{} {}{} {}",
-                        level,
-                        meta.module_path().unwrap_or("..."),
-                        thread_display_suffix(),
-                        recorder,
-                    ),
-                    mark_name,
-                );
+                // mark(&mark_name);
+                // let _ = measure(
+                //     format!(
+                //         "{} {}{} {}",
+                //         level,
+                //         meta.module_path().unwrap_or("..."),
+                //         thread_display_suffix(),
+                //         recorder,
+                //     ),
+                //     mark_name,
+                // );
             }
         }
     }
     /// doc: Notifies this layer that a span with the given ID was entered.
-    fn on_enter(&self, id: &tracing::Id, _ctx: Context<'_, S>) {
-        mark(&mark_name(id));
+    fn on_enter(&self, _id: &tracing::Id, _ctx: Context<'_, S>) {
+        // mark(&mark_name(id));
     }
     /// doc: Notifies this layer that the span with the given ID was exited.
     fn on_exit(&self, id: &tracing::Id, ctx: Context<'_, S>) {
         if let Some(span_ref) = ctx.span(id) {
-            let meta = span_ref.metadata();
-            if let Some(debug_record) = span_ref.extensions().get::<StringRecorder>() {
-                let _ = measure(
-                    format!(
-                        "\"{}\"{} {} {}",
-                        meta.name(),
-                        thread_display_suffix(),
-                        meta.module_path().unwrap_or("..."),
-                        debug_record,
-                    ),
-                    mark_name(id),
-                );
+            let _meta = span_ref.metadata();
+            if let Some(_debug_record) = span_ref.extensions().get::<StringRecorder>() {
+                // let _ = measure(
+                //     format!(
+                //         "\"{}\"{} {} {}",
+                //         meta.name(),
+                //         thread_display_suffix(),
+                //         meta.module_path().unwrap_or("..."),
+                //         debug_record,
+                //     ),
+                //     mark_name(id),
+                // );
             } else {
-                let _ = measure(
-                    format!(
-                        "\"{}\"{} {}",
-                        meta.name(),
-                        thread_display_suffix(),
-                        meta.module_path().unwrap_or("..."),
-                    ),
-                    mark_name(id),
-                );
+                // let _ = measure(
+                //     format!(
+                //         "\"{}\"{} {}",
+                //         meta.name(),
+                //         thread_display_suffix(),
+                //         meta.module_path().unwrap_or("..."),
+                //     ),
+                //     mark_name(id),
+                // );
             }
         }
     }
