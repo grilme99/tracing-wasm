@@ -1,5 +1,5 @@
-use core::fmt::{self, Write};
-use core::sync::atomic::AtomicUsize;
+use std::fmt::{self, Write};
+use std::sync::atomic::AtomicUsize;
 
 use tracing::Subscriber;
 use tracing::{
